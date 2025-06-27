@@ -1,26 +1,23 @@
 // npm install sharp
 // node compress-png.js
-// compress-png.js (v2 - 智能判断版本)
+// compress.js
 
 const sharp = require("sharp");
 const fs = require("fs/promises");
 const path = require("path");
 
-// =================================================================
-// ========================= 用户配置区域 ==========================
-// =================================================================
+// --- 配置区域 ---
+// 请在这里指定你的输入图片目录
+const inputDir = "C:/Users/admin/Downloads/作品集排版";
 
-// 【请在这里填入你的图片文件夹的绝对路径】
-// Windows 示例: 'C:/Users/YourUser/Desktop/MyPictures'
-// macOS/Linux 示例: '/Users/YourUser/Documents/MyImages'
-const INPUT_FOLDER_PATH = "C:/Users/admin/Downloads/作品集排版"; // <--- 在这里填入你的文件夹路径
-
-// =================================================================
+// 输出文件夹的名称
+const outputDirName = "compressed";
+// --- 配置结束 ---
 
 /**
- * 格式化文件大小
- * @param {number} bytes - 字节数
- * @returns {string} - 格式化后的大小字符串
+ * 将字节大小格式化为更易读的字符串 (KB, MB)
+ * @param {number} bytes - 文件大小（字节）
+ * @returns {string} 格式化后的大小字符串
  */
 function formatBytes(bytes) {
   if (bytes === 0) return "0 Bytes";
@@ -31,111 +28,105 @@ function formatBytes(bytes) {
 }
 
 /**
- * 主执行函数
+ * 主压缩函数
  */
-async function processImages() {
-  console.log("--- PNG 图片高质量压缩脚本启动 (智能判断版) ---");
+async function compressPngImages() {
+  const fullOutputDir = path.join(inputDir, outputDirName);
 
-  if (!INPUT_FOLDER_PATH) {
-    console.error("错误：请在脚本中填入你的文件夹路径 (INPUT_FOLDER_PATH)");
+  try {
+    // 1. 检查输入目录是否存在
+    await fs.access(inputDir);
+    console.log(`✅ 输入目录找到: ${inputDir}`);
+  } catch (error) {
+    console.error(
+      `❌ 错误: 输入目录 "${inputDir}" 不存在或无法访问。请检查路径是否正确。`
+    );
     return;
   }
 
-  const outputDir = path.join(INPUT_FOLDER_PATH, "compressed_output");
+  // 2. 创建输出目录 (如果不存在)
+  await fs.mkdir(fullOutputDir, { recursive: true });
+  console.log(`📂 输出目录已准备好: ${fullOutputDir}`);
+  console.log("-------------------------------------------");
 
-  try {
-    await fs.access(INPUT_FOLDER_PATH);
-    console.log(`源文件夹: ${INPUT_FOLDER_PATH}`);
+  // 3. 读取目录中的所有文件
+  const files = await fs.readdir(inputDir);
 
-    await fs.mkdir(outputDir, { recursive: true });
-    console.log(`输出文件夹: ${outputDir}`);
-    console.log("-----------------------------------------");
+  let totalOriginalSize = 0;
+  let totalCompressedSize = 0;
+  let processedCount = 0;
 
-    const files = await fs.readdir(INPUT_FOLDER_PATH);
-    const pngFiles = files.filter((file) =>
-      file.toLowerCase().endsWith(".png")
-    );
+  for (const file of files) {
+    const inputPath = path.join(inputDir, file);
+    const outputPath = path.join(fullOutputDir, file);
 
-    if (pngFiles.length === 0) {
-      console.log("在指定文件夹中未找到任何 PNG 图片。");
-      return;
+    // 仅处理 .png 文件
+    if (path.extname(file).toLowerCase() !== ".png") {
+      continue;
     }
 
-    console.log(`共找到 ${pngFiles.length} 个 PNG 文件，开始处理...`);
-    let totalOriginalSize = 0;
-    let totalFinalSize = 0;
-
-    for (const file of pngFiles) {
-      const inputPath = path.join(INPUT_FOLDER_PATH, file);
-      const outputPath = path.join(outputDir, file);
-
-      try {
-        const stats = await fs.stat(inputPath);
-        if (stats.isDirectory()) continue;
-
-        const originalSize = stats.size;
-        totalOriginalSize += originalSize;
-
-        console.log(`\n[处理中] ${file}`);
-        console.log(`  - 原始大小: ${formatBytes(originalSize)}`);
-
-        // 【核心改动】先将压缩结果生成到内存 Buffer 中
-        const compressedBuffer = await sharp(inputPath)
-          .png({
-            quality: 85,
-            palette: true,
-            compressionLevel: 9,
-            adaptiveFiltering: true,
-          })
-          .toBuffer();
-
-        const compressedSize = compressedBuffer.length;
-
-        // 【核心改动】比较大小，决定最终操作
-        if (compressedSize < originalSize) {
-          // 如果压缩后变小了，保存压缩后的文件
-          await fs.writeFile(outputPath, compressedBuffer);
-          totalFinalSize += compressedSize;
-          const savedRatio = (
-            ((originalSize - compressedSize) / originalSize) *
-            100
-          ).toFixed(2);
-          console.log(`  - 压缩后大小: ${formatBytes(compressedSize)}`);
-          console.log(`  - ✅ 压缩成功，节省了 ${savedRatio}%`);
-        } else {
-          // 如果压缩后没有变小（或变大了），直接复制原文件
-          await fs.copyFile(inputPath, outputPath);
-          totalFinalSize += originalSize;
-          console.log(`  - 压缩后大小: ${formatBytes(originalSize)}`);
-          console.log(`  - ⚠️ 优化无效，已复制原文件。原文件已是最佳状态。`);
-        }
-      } catch (err) {
-        console.error(`处理文件 ${file} 时发生错误:`, err.message);
+    try {
+      const stats = await fs.stat(inputPath);
+      // 跳过子目录
+      if (stats.isDirectory()) {
+        continue;
       }
-    }
 
-    console.log("\n-----------------------------------------");
-    console.log("🎉 所有图片处理完成！");
-    console.log("--- 压缩结果统计 ---");
-    console.log(`总原始大小: ${formatBytes(totalOriginalSize)}`);
-    console.log(`总输出大小: ${formatBytes(totalFinalSize)}`);
-    const totalSavedRatio =
-      totalOriginalSize > 0
-        ? (
-            ((totalOriginalSize - totalFinalSize) / totalOriginalSize) *
-            100
-          ).toFixed(2)
-        : 0;
-    console.log(`总共节省空间: ${totalSavedRatio}%`);
-    console.log("-----------------------------------------");
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      console.error(`错误: 找不到指定的文件夹路径 "${INPUT_FOLDER_PATH}"`);
-    } else {
-      console.error("发生未知错误:", error);
+      const originalSize = stats.size;
+      totalOriginalSize += originalSize;
+
+      console.log(`🚀 开始处理: ${file}`);
+
+      // 4. 使用 sharp 进行压缩
+      const info = await sharp(inputPath)
+        .png({
+          // --- 压缩设置 ---
+          // `quality` 是实现高压缩率的关键。范围 0-100。值越低，颜色越少，文件越小。
+          // 60-80 是一个在质量和大小之间取得良好平衡的范围。我们使用 65 作为积极的起点。
+          quality: 65,
+
+          // `compressionLevel` 是 zlib 压缩级别，范围 0-9。9 是最慢但压缩效果最好。
+          compressionLevel: 9,
+
+          // `palette` 强制使用8位调色板格式，这是PNG有损压缩的核心。
+          palette: true,
+
+          // `adaptiveFiltering` 尝试应用自适应行过滤，有时可以进一步减小文件大小。
+          adaptiveFiltering: true,
+        })
+        .toFile(outputPath);
+
+      const compressedSize = info.size;
+      totalCompressedSize += compressedSize;
+      processedCount++;
+
+      const reduction = ((originalSize - compressedSize) / originalSize) * 100;
+
+      console.log(
+        `  -> ✅ 完成! | 原始大小: ${formatBytes(
+          originalSize
+        )} | 压缩后: ${formatBytes(
+          compressedSize
+        )} | 压缩率: ${reduction.toFixed(2)}%`
+      );
+    } catch (err) {
+      console.error(`  -> ❌ 处理文件 "${file}" 时发生错误:`, err.message);
     }
+  }
+
+  console.log("-------------------------------------------");
+  if (processedCount > 0) {
+    const totalReduction =
+      ((totalOriginalSize - totalCompressedSize) / totalOriginalSize) * 100;
+    console.log("🎉 全部处理完成！");
+    console.log(`总共处理文件: ${processedCount}`);
+    console.log(`总原始大小: ${formatBytes(totalOriginalSize)}`);
+    console.log(`总压缩大小: ${formatBytes(totalCompressedSize)}`);
+    console.log(`总体积压缩率: ${totalReduction.toFixed(2)}%`);
+  } else {
+    console.log("🤔 在输入目录中没有找到 PNG 文件。");
   }
 }
 
 // 运行主函数
-processImages();
+compressPngImages().catch(console.error);
