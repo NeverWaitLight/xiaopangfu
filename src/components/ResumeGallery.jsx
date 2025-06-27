@@ -6,6 +6,9 @@ const ResumeGallery = () => {
     <div className="gallery">
       <div className="gallery-container">
         <div className="gallery-item">
+          <StatsDashboard />
+        </div>
+        <div className="gallery-item">
           <img src="/assets/resume/fu/01.png" alt="Resume Page 1" loading="lazy" />
         </div>
         <div className="gallery-item">
