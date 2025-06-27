@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import StatsDashboard from './StatsDashboard';
 
 const ResumeGallery = () => {
   const [images, setImages] = useState([]);
@@ -25,11 +26,15 @@ const ResumeGallery = () => {
       <div className="gallery-container">
         {images.map(image => (
           <div className="gallery-item" key={image.id}>
-            <img 
-              src={image.src} 
-              alt={image.alt}
-              loading="lazy"
-            />
+            {image.id === 8 ? (
+              <StatsDashboard />
+            ) : (
+              <img 
+                src={image.src} 
+                alt={image.alt}
+                loading="lazy"
+              />
+            )}
           </div>
         ))}
       </div>
